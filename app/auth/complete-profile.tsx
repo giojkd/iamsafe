@@ -3,17 +3,24 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { theme } from '../../theme';
 import { useState } from 'react';
 import { userProfileService } from '../../lib/user-profile-service';
+import { AlertCircle } from 'lucide-react-native';
 
 export default function CompleteProfileScreen() {
   const router = useRouter();
-  const { phone, role, userId } = useLocalSearchParams<{ phone: string; role: 'client' | 'bodyguard'; userId: string }>();
+  const { role, userId } = useLocalSearchParams<{ role: 'client' | 'bodyguard'; userId: string }>();
   const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleComplete = async () => {
     if (!fullName || fullName.trim().length < 2) {
       setError('Inserisci il tuo nome completo');
+      return;
+    }
+
+    if (!phone || phone.trim().length < 8) {
+      setError('Inserisci un numero di telefono valido');
       return;
     }
 
@@ -30,7 +37,7 @@ export default function CompleteProfileScreen() {
 
       const result = await userProfileService.updateProfile(userId, {
         full_name: fullName.trim(),
-        phone: phone || '',
+        phone: phone.trim(),
         role: role as 'client' | 'bodyguard',
         profile_completed: true,
       });
@@ -38,7 +45,7 @@ export default function CompleteProfileScreen() {
       if (result.error) {
         const createResult = await userProfileService.createProfile(userId, {
           full_name: fullName.trim(),
-          phone: phone || '',
+          phone: phone.trim(),
           role: role as 'client' | 'bodyguard',
           profile_completed: true,
         });
@@ -66,7 +73,12 @@ export default function CompleteProfileScreen() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Completa il profilo</Text>
-      <Text style={styles.subtitle}>Come ti chiami?</Text>
+      <Text style={styles.subtitle}>
+        {role === 'client'
+          ? 'Inserisci i tuoi dati per iniziare a prenotare bodyguard'
+          : 'Inserisci i tuoi dati per offrire i tuoi servizi'
+        }
+      </Text>
 
       <TextInput
         style={styles.input}
@@ -81,8 +93,24 @@ export default function CompleteProfileScreen() {
         editable={!loading}
       />
 
+      <TextInput
+        style={styles.input}
+        placeholder="Numero di telefono (es. +39 340 1234567)"
+        placeholderTextColor={theme.colors.textSecondary}
+        value={phone}
+        onChangeText={(text) => {
+          setPhone(text);
+          if (error) setError('');
+        }}
+        keyboardType="phone-pad"
+        editable={!loading}
+      />
+
       {error ? (
-        <Text style={styles.errorText}>{error}</Text>
+        <View style={styles.errorContainer}>
+          <AlertCircle size={20} color={theme.colors.error} />
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
       ) : null}
 
       <TouchableOpacity
@@ -123,22 +151,33 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 16,
     paddingHorizontal: 16,
-    fontSize: 18,
+    fontSize: 16,
     color: theme.colors.text,
     marginBottom: 16,
     borderWidth: 2,
     borderColor: theme.colors.border,
   },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: theme.colors.surface,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
   errorText: {
     fontSize: 14,
     color: theme.colors.error,
-    marginBottom: 16,
+    flex: 1,
   },
   button: {
     backgroundColor: theme.colors.primary,
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
+    marginTop: 8,
   },
   buttonDisabled: {
     opacity: 0.6,

@@ -11,7 +11,7 @@ export default function RoleSelectionScreen() {
   const handleContinue = () => {
     if (selectedRole) {
       router.push({
-        pathname: '/auth/phone',
+        pathname: '/auth/signup',
         params: { role: selectedRole },
       });
     }
