@@ -24,7 +24,7 @@ export default function SplashScreen() {
             style={[styles.button, styles.buttonPrimary]}
             onPress={() => router.push('/auth/role-selection')}
           >
-            <Text style={styles.buttonTextPrimary}>Buco chi clicca</Text>
+            <Text style={styles.buttonTextPrimary}>Buco chi clicca e anche chi non clicca</Text>
           </TouchableOpacity>
         </View>
       </View>
