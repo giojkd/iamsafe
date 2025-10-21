@@ -73,11 +73,13 @@ export default function SearchBodyguardsScreen() {
       setLoading(true);
       setError(null);
 
+      console.log('Fetching bodyguards...');
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select('*')
         .eq('role', 'bodyguard');
 
+      console.log('Profiles result:', { profiles, error: profilesError });
       if (profilesError) throw profilesError;
 
       if (!profiles || profiles.length === 0) {

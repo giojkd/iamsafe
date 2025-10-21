@@ -101,6 +101,20 @@ Questa migrazione crea:
 - Tabella `bodyguard_work_zones` (zone di lavoro dei bodyguard)
 - Policy di sicurezza RLS
 
+#### 3.7 - Settima Migrazione: Fix Public Access
+
+**IMPORTANTE**: Questa migrazione è necessaria per vedere i bodyguard nell'app!
+
+1. Apri il file `supabase/migrations/20251021201500_fix_public_access.sql`
+2. Copia **tutto il contenuto** del file
+3. Incolla nel SQL Editor di Supabase
+4. Clicca su **Run**
+5. Dovresti vedere "Success. No rows returned"
+
+Questa migrazione aggiorna:
+- Policy RLS per permettere accesso pubblico ai profili bodyguard
+- Policy RLS per permettere ricerca delle zone di lavoro
+
 ### Passo 4: Verifica le Tabelle
 
 1. Nel menu laterale, clicca su **Table Editor**
