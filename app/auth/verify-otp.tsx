@@ -2,8 +2,8 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'rea
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { theme } from '../../theme';
 import { CheckCircle } from 'lucide-react-native';
-import { useState, useEffect } from 'react';
-import { userProfileService } from '../../lib/user-profile-service';
+import { useState } from 'react';
+import { supabase } from '../../lib/supabase';
 
 export default function VerifyOtpScreen() {
   const router = useRouter();
@@ -13,17 +13,64 @@ export default function VerifyOtpScreen() {
   const handleContinue = async () => {
     setLoading(true);
 
-    const user = await userProfileService.getCurrentUser();
-    
-    if (!user) {
-      setLoading(false);
-      return;
-    }
+    try {
+      const demoEmail = `demo_${phone.replace(/\+/g, '').replace(/\s/g, '')}@example.com`;
+      const demoPassword = 'demo123456';
 
-    router.replace({
-      pathname: '/auth/complete-profile',
-      params: { phone, role, userId: user.id },
-    });
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: demoEmail,
+        password: demoPassword,
+      });
+
+      if (signInError) {
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email: demoEmail,
+          password: demoPassword,
+        });
+
+        if (signUpError) {
+          console.error('Error signing up:', signUpError);
+          setLoading(false);
+          return;
+        }
+
+        if (signUpData.user) {
+          router.replace({
+            pathname: '/auth/complete-profile',
+            params: { phone, role, userId: signUpData.user.id },
+          });
+          return;
+        }
+      }
+
+      if (signInData?.user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', signInData.user.id)
+          .maybeSingle();
+
+        if (profile) {
+          if (profile.profile_completed && profile.role) {
+            if (profile.role === 'client') {
+              router.replace('/client-tabs');
+            } else {
+              router.replace('/bodyguard-tabs');
+            }
+            return;
+          }
+        }
+
+        router.replace({
+          pathname: '/auth/complete-profile',
+          params: { phone, role, userId: signInData.user.id },
+        });
+      }
+    } catch (err) {
+      console.error('Error during authentication:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
