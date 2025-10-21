@@ -25,15 +25,30 @@ export default function CompleteProfileScreen() {
     setLoading(true);
     setError('');
 
-    const { error: profileError } = await userProfileService.createProfile(userId, {
-      full_name: fullName.trim(),
-      phone: phone || '',
-      role: role as 'client' | 'bodyguard',
-      profile_completed: false,
-    });
+    let profileError = null;
+
+    const existingProfile = await userProfileService.getProfile(userId);
+
+    if (existingProfile) {
+      const result = await userProfileService.updateProfile(userId, {
+        full_name: fullName.trim(),
+        phone: phone || '',
+        role: role as 'client' | 'bodyguard',
+        profile_completed: true,
+      });
+      profileError = result.error;
+    } else {
+      const result = await userProfileService.createProfile(userId, {
+        full_name: fullName.trim(),
+        phone: phone || '',
+        role: role as 'client' | 'bodyguard',
+        profile_completed: true,
+      });
+      profileError = result.error;
+    }
 
     if (profileError) {
-      setError('Errore durante la creazione del profilo');
+      setError('Errore durante il salvataggio del profilo');
       setLoading(false);
       return;
     }
