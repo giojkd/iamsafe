@@ -15,7 +15,7 @@ export default function SplashScreen() {
       <View style={styles.content}>
         <View style={styles.logoContainer}>
           <Shield size={80} color={theme.colors.primary} strokeWidth={2} />
-          <Text style={styles.title}>SecureGuard</Text>
+          <Text style={styles.title}>AMSAF3</Text>
           <Text style={styles.subtitle}>Protezione personale on-demand</Text>
         </View>
 
