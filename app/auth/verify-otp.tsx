@@ -54,6 +54,11 @@ export default function VerifyOtpScreen() {
 
         if (signUpData?.user) {
           userData = signUpData.user;
+
+          await new Promise(resolve => setTimeout(resolve, 500));
+
+          const { data: sessionData } = await supabase.auth.getSession();
+          console.log('Session after signup:', sessionData?.session ? 'Active' : 'Not active');
         }
       }
 

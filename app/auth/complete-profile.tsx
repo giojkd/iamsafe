@@ -25,39 +25,41 @@ export default function CompleteProfileScreen() {
     setLoading(true);
     setError('');
 
-    let profileError = null;
+    try {
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
-    const existingProfile = await userProfileService.getProfile(userId);
-
-    if (existingProfile) {
       const result = await userProfileService.updateProfile(userId, {
         full_name: fullName.trim(),
         phone: phone || '',
         role: role as 'client' | 'bodyguard',
         profile_completed: true,
       });
-      profileError = result.error;
-    } else {
-      const result = await userProfileService.createProfile(userId, {
-        full_name: fullName.trim(),
-        phone: phone || '',
-        role: role as 'client' | 'bodyguard',
-        profile_completed: true,
-      });
-      profileError = result.error;
-    }
 
-    if (profileError) {
-      setError('Errore durante il salvataggio del profilo');
+      if (result.error) {
+        const createResult = await userProfileService.createProfile(userId, {
+          full_name: fullName.trim(),
+          phone: phone || '',
+          role: role as 'client' | 'bodyguard',
+          profile_completed: true,
+        });
+
+        if (createResult.error) {
+          setError('Errore durante il salvataggio del profilo');
+          setLoading(false);
+          return;
+        }
+      }
+
       setLoading(false);
-      return;
-    }
-
-    setLoading(false);
-    if (role === 'client') {
-      router.replace('/client-tabs');
-    } else {
-      router.replace('/bodyguard-tabs');
+      if (role === 'client') {
+        router.replace('/client-tabs');
+      } else {
+        router.replace('/bodyguard-tabs');
+      }
+    } catch (err) {
+      console.error('Error completing profile:', err);
+      setError('Errore imprevisto');
+      setLoading(false);
     }
   };
 
