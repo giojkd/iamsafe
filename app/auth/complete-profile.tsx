@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { theme } from '../../theme';
 import { useState } from 'react';
@@ -6,23 +6,39 @@ import { userProfileService } from '../../lib/user-profile-service';
 
 export default function CompleteProfileScreen() {
   const router = useRouter();
-  const { phone, role } = useLocalSearchParams<{ phone: string; role: 'client' | 'bodyguard' }>();
+  const { phone, role, userId } = useLocalSearchParams<{ phone: string; role: 'client' | 'bodyguard'; userId: string }>();
   const [fullName, setFullName] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleComplete = () => {
+  const handleComplete = async () => {
     if (!fullName || fullName.trim().length < 2) {
       setError('Inserisci il tuo nome completo');
       return;
     }
 
-    userProfileService.setProfile({
-      fullName: fullName.trim(),
+    if (!userId) {
+      setError('Errore: utente non trovato');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    const { error: profileError } = await userProfileService.createProfile(userId, {
+      full_name: fullName.trim(),
       phone: phone || '',
       role: role as 'client' | 'bodyguard',
+      profile_completed: false,
     });
 
-    setError('');
+    if (profileError) {
+      setError('Errore durante la creazione del profilo');
+      setLoading(false);
+      return;
+    }
+
+    setLoading(false);
     if (role === 'client') {
       router.replace('/client-tabs');
     } else {
@@ -45,6 +61,7 @@ export default function CompleteProfileScreen() {
           if (error) setError('');
         }}
         autoCapitalize="words"
+        editable={!loading}
       />
 
       {error ? (
@@ -52,10 +69,15 @@ export default function CompleteProfileScreen() {
       ) : null}
 
       <TouchableOpacity
-        style={styles.button}
+        style={[styles.button, loading && styles.buttonDisabled]}
         onPress={handleComplete}
+        disabled={loading}
       >
-        <Text style={styles.buttonText}>Completa</Text>
+        {loading ? (
+          <ActivityIndicator color={theme.colors.background} />
+        ) : (
+          <Text style={styles.buttonText}>Completa</Text>
+        )}
       </TouchableOpacity>
     </View>
   );
@@ -100,6 +122,9 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
   buttonText: {
     fontSize: 18,

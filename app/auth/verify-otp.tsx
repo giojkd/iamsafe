@@ -1,16 +1,28 @@
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { theme } from '../../theme';
 import { CheckCircle } from 'lucide-react-native';
+import { useState, useEffect } from 'react';
+import { userProfileService } from '../../lib/user-profile-service';
 
 export default function VerifyOtpScreen() {
   const router = useRouter();
   const { phone, role } = useLocalSearchParams<{ phone: string; role: 'client' | 'bodyguard' }>();
+  const [loading, setLoading] = useState(false);
 
-  const handleContinue = () => {
-    router.push({
+  const handleContinue = async () => {
+    setLoading(true);
+
+    const user = await userProfileService.getCurrentUser();
+    
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    router.replace({
       pathname: '/auth/complete-profile',
-      params: { phone, role },
+      params: { phone, role, userId: user.id },
     });
   };
 
@@ -25,8 +37,16 @@ export default function VerifyOtpScreen() {
         </Text>
       </View>
 
-      <TouchableOpacity style={styles.button} onPress={handleContinue}>
-        <Text style={styles.buttonText}>Continua</Text>
+      <TouchableOpacity 
+        style={[styles.button, loading && styles.buttonDisabled]} 
+        onPress={handleContinue}
+        disabled={loading}
+      >
+        {loading ? (
+          <ActivityIndicator color={theme.colors.background} />
+        ) : (
+          <Text style={styles.buttonText}>Continua</Text>
+        )}
       </TouchableOpacity>
     </View>
   );
@@ -69,6 +89,9 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
   buttonText: {
     fontSize: 18,

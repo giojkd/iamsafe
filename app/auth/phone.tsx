@@ -1,25 +1,59 @@
-import { View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { theme } from '../../theme';
 import { useState } from 'react';
+import { supabase } from '../../lib/supabase';
 
 export default function PhoneScreen() {
   const router = useRouter();
   const { role } = useLocalSearchParams<{ role: 'client' | 'bodyguard' }>();
   const [phone, setPhone] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (!phone || phone.length < 9) {
       setError('Inserisci un numero di telefono valido');
       return;
     }
 
+    setLoading(true);
     setError('');
-    router.push({
-      pathname: '/auth/verify-otp',
-      params: { phone: '+39' + phone, role },
-    });
+
+    const fullPhone = '+39' + phone;
+
+    try {
+      const { data: existingUser } = await supabase.auth.getUser();
+      
+      if (existingUser?.user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', existingUser.user.id)
+          .maybeSingle();
+
+        if (profile) {
+          if (profile.profile_completed) {
+            if (profile.role === 'client') {
+              router.replace('/client-tabs');
+            } else {
+              router.replace('/bodyguard-tabs');
+            }
+            return;
+          }
+        }
+      }
+
+      router.push({
+        pathname: '/auth/verify-otp',
+        params: { phone: fullPhone, role },
+      });
+    } catch (err) {
+      console.error('Error during phone auth:', err);
+      setError('Errore durante l\'autenticazione');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -40,6 +74,7 @@ export default function PhoneScreen() {
           }}
           keyboardType="phone-pad"
           maxLength={15}
+          editable={!loading}
         />
       </View>
 
@@ -47,8 +82,16 @@ export default function PhoneScreen() {
         <Text style={styles.errorText}>{error}</Text>
       ) : null}
 
-      <TouchableOpacity style={styles.button} onPress={handleContinue}>
-        <Text style={styles.buttonText}>Continua</Text>
+      <TouchableOpacity 
+        style={[styles.button, loading && styles.buttonDisabled]} 
+        onPress={handleContinue}
+        disabled={loading}
+      >
+        {loading ? (
+          <ActivityIndicator color={theme.colors.background} />
+        ) : (
+          <Text style={styles.buttonText}>Continua</Text>
+        )}
       </TouchableOpacity>
     </View>
   );
@@ -104,6 +147,9 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
   buttonText: {
     fontSize: 18,

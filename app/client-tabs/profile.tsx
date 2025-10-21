@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TouchableOpacity, StatusBar } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, StatusBar, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { User, LogOut, MapPin, Shield, ChevronRight } from 'lucide-react-native';
@@ -9,21 +9,40 @@ export default function ProfileScreen() {
   const router = useRouter();
   const [userName, setUserName] = useState('Cliente');
   const [userPhone, setUserPhone] = useState('+39 XXX XXX XXXX');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const profile = userProfileService.getProfile();
-    if (profile) {
-      setUserName(profile.fullName);
-      if (profile.phone) {
-        setUserPhone(profile.phone);
-      }
-    }
+    loadProfile();
   }, []);
 
-  const handleSignOut = () => {
-    userProfileService.clearProfile();
+  const loadProfile = async () => {
+    try {
+      const profile = await userProfileService.getProfile();
+      if (profile) {
+        setUserName(profile.full_name);
+        if (profile.phone) {
+          setUserPhone(profile.phone);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading profile:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    await userProfileService.signOut();
     router.replace('/splash');
   };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -89,6 +108,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.backgroundDark,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.colors.background,
   },
   header: {
     alignItems: 'center',
