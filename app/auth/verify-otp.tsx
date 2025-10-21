@@ -1,7 +1,7 @@
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { theme } from '../../theme';
-import { CheckCircle } from 'lucide-react-native';
+import { CheckCircle, AlertCircle } from 'lucide-react-native';
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 
@@ -9,65 +9,81 @@ export default function VerifyOtpScreen() {
   const router = useRouter();
   const { phone, role } = useLocalSearchParams<{ phone: string; role: 'client' | 'bodyguard' }>();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleContinue = async () => {
     setLoading(true);
+    setError('');
 
     try {
-      const demoEmail = `demo_${phone.replace(/\+/g, '').replace(/\s/g, '')}@example.com`;
-      const demoPassword = 'demo123456';
+      const cleanPhone = phone.replace(/\+/g, '').replace(/\s/g, '');
+      const demoEmail = `user${cleanPhone}@guardme.app`;
+      const demoPassword = 'SecureDemo2024!';
+
+      let userData = null;
 
       const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email: demoEmail,
         password: demoPassword,
       });
 
-      if (signInError) {
+      if (!signInError && signInData?.user) {
+        userData = signInData.user;
+      } else {
         const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email: demoEmail,
           password: demoPassword,
+          options: {
+            data: {
+              phone: phone,
+            },
+            emailRedirectTo: undefined,
+          }
         });
 
         if (signUpError) {
           console.error('Error signing up:', signUpError);
+          if (signUpError.message.includes('email')) {
+            setError('Configurazione email non valida. Verifica le impostazioni Supabase Auth.');
+          } else {
+            setError(signUpError.message);
+          }
           setLoading(false);
           return;
         }
 
-        if (signUpData.user) {
-          router.replace({
-            pathname: '/auth/complete-profile',
-            params: { phone, role, userId: signUpData.user.id },
-          });
-          return;
+        if (signUpData?.user) {
+          userData = signUpData.user;
         }
       }
 
-      if (signInData?.user) {
+      if (userData) {
         const { data: profile } = await supabase
           .from('profiles')
           .select('*')
-          .eq('id', signInData.user.id)
+          .eq('id', userData.id)
           .maybeSingle();
 
-        if (profile) {
-          if (profile.profile_completed && profile.role) {
-            if (profile.role === 'client') {
-              router.replace('/client-tabs');
-            } else {
-              router.replace('/bodyguard-tabs');
-            }
-            return;
+        if (profile?.profile_completed && profile.role) {
+          if (profile.role === 'client') {
+            router.replace('/client-tabs');
+          } else {
+            router.replace('/bodyguard-tabs');
           }
+          return;
         }
 
         router.replace({
           pathname: '/auth/complete-profile',
-          params: { phone, role, userId: signInData.user.id },
+          params: { phone, role, userId: userData.id },
         });
+        return;
       }
+
+      setError('Impossibile creare l\'account. Riprova.');
     } catch (err) {
       console.error('Error during authentication:', err);
+      setError('Errore imprevisto durante l\'autenticazione.');
     } finally {
       setLoading(false);
     }
@@ -82,10 +98,17 @@ export default function VerifyOtpScreen() {
         <Text style={styles.info}>
           In produzione qui inseriresti il codice OTP ricevuto via SMS.
         </Text>
+
+        {error ? (
+          <View style={styles.errorContainer}>
+            <AlertCircle size={20} color={theme.colors.error} />
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        ) : null}
       </View>
 
-      <TouchableOpacity 
-        style={[styles.button, loading && styles.buttonDisabled]} 
+      <TouchableOpacity
+        style={[styles.button, loading && styles.buttonDisabled]}
         onPress={handleContinue}
         disabled={loading}
       >
@@ -130,6 +153,21 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     textAlign: 'center',
     paddingHorizontal: 32,
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: theme.colors.surface,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 16,
+  },
+  errorText: {
+    fontSize: 14,
+    color: theme.colors.error,
+    flex: 1,
   },
   button: {
     backgroundColor: theme.colors.primary,
