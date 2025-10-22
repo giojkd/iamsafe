@@ -126,9 +126,11 @@ export default function SearchBodyguardsScreen() {
   }
 
   const filteredBodyguards = bodyguards.filter(bg => {
-    const isInWorkZone = bg.workZones.some(zone =>
-      isWithinRadius(searchCity, zone.city, zone.radius_km)
-    );
+    const hasWorkZones = bg.workZones.length > 0;
+    const isInWorkZone = hasWorkZones
+      ? bg.workZones.some(zone => isWithinRadius(searchCity, zone.city, zone.radius_km))
+      : true;
+
     if (!isInWorkZone) {
       return false;
     }
