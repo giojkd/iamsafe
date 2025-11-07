@@ -1,8 +1,9 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { theme } from '../../theme';
 import { Shield, Star, MapPin, Calendar, Clock, ArrowLeft, Navigation, Car, AlertCircle, Eye, EyeOff, User } from 'lucide-react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useState, useEffect } from 'react';
+import { supabase } from '../../lib/supabase';
 
 type DiscretionLevel = 'low' | 'medium' | 'high';
 type OutfitType = 'formal' | 'casual' | 'streetwear' | 'tactical';
@@ -44,60 +45,24 @@ const OUTFIT_TYPES = {
   },
 };
 
-const MOCK_BODYGUARDS = [
-  {
-    id: '1',
-    full_name: 'Marco Rossi',
-    bio: 'Esperto in sicurezza personale con 5 anni di esperienza. Certificato in protezione esecutivi e gestione emergenze.',
-    hourly_rate: 50,
-    rating: 4.8,
-    total_reviews: 120,
-    vehicle_type: 'sedan' as const,
-  },
-  {
-    id: '2',
-    full_name: 'Luca Bianchi',
-    bio: 'Ex militare con 8 anni di esperienza nel settore sicurezza privata.',
-    hourly_rate: 60,
-    rating: 4.9,
-    total_reviews: 230,
-    vehicle_type: 'suv' as const,
-  },
-  {
-    id: '3',
-    full_name: 'Giuseppe Verdi',
-    bio: 'Specializzato in eventi e accompagnamento VIP',
-    hourly_rate: 45,
-    rating: 4.5,
-    total_reviews: 80,
-    vehicle_type: 'luxury' as const,
-  },
-  {
-    id: '4',
-    full_name: 'Andrea Neri',
-    bio: 'Professionista certificato con 10 anni di esperienza',
-    hourly_rate: 70,
-    rating: 5.0,
-    total_reviews: 350,
-    vehicle_type: 'luxury' as const,
-  },
-  {
-    id: '5',
-    full_name: 'Paolo Ferrari',
-    bio: 'Esperto in sicurezza eventi e protezione esecutivi',
-    hourly_rate: 55,
-    rating: 4.7,
-    total_reviews: 150,
-    vehicle_type: 'none' as const,
-  },
-];
+type Bodyguard = {
+  id: string;
+  full_name: string;
+  bio: string;
+  hourly_rate: number;
+  rating: number;
+  total_reviews: number;
+  vehicle_type: string;
+};
 
 export default function BodyguardDetailScreen() {
   const router = useRouter();
   const { id, defaultService } = useLocalSearchParams<{ id: string; defaultService?: string }>();
 
+  const [bodyguard, setBodyguard] = useState<Bodyguard | null>(null);
+  const [loading, setLoading] = useState(true);
+
   const initialServiceType = defaultService === 'trip' ? 'route' : 'location';
-  const bodyguard = MOCK_BODYGUARDS.find(bg => bg.id === id);
   const hasVehicle = bodyguard && bodyguard.vehicle_type !== 'none';
   const initialUseVehicle = defaultService === 'trip' && hasVehicle;
 
@@ -110,6 +75,40 @@ export default function BodyguardDetailScreen() {
   const [selectedOutfit, setSelectedOutfit] = useState<OutfitType>('formal');
   const [notes, setNotes] = useState('');
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    loadBodyguard();
+  }, [id]);
+
+  async function loadBodyguard() {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', id)
+        .eq('role', 'bodyguard')
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (data) {
+        setBodyguard({
+          id: data.id,
+          full_name: data.full_name || 'Nome non disponibile',
+          bio: data.bio || 'Nessuna descrizione disponibile',
+          hourly_rate: data.hourly_rate || 50,
+          rating: 4.5,
+          total_reviews: 0,
+          vehicle_type: data.vehicle_type || 'none',
+        });
+      }
+    } catch (err) {
+      console.error('Error loading bodyguard:', err);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   const calculateRouteEstimates = (pickup: string, dropoff: string): { distance: number; hours: number } => {
     if (!pickup || !dropoff) return { distance: 0, hours: 0 };
@@ -236,10 +235,36 @@ export default function BodyguardDetailScreen() {
   const pricePerKm = 2;
   const vehicleCost = useBodyguardVehicle && estimatedDistance > 0 ? estimatedDistance * pricePerKm : 0;
 
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <ArrowLeft size={24} color={theme.colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Dettagli Bodyguard</Text>
+          <View style={{ width: 24 }} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
+      </View>
+    );
+  }
+
   if (!bodyguard) {
     return (
       <View style={styles.container}>
-        <Text style={styles.errorText}>Bodyguard non trovato</Text>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <ArrowLeft size={24} color={theme.colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Dettagli Bodyguard</Text>
+          <View style={{ width: 24 }} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.errorText}>Bodyguard non trovato</Text>
+        </View>
       </View>
     );
   }
@@ -918,5 +943,10 @@ const styles = StyleSheet.create({
   outfitDescriptionActive: {
     color: theme.colors.background,
     opacity: 0.85,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
