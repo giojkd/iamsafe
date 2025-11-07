@@ -61,16 +61,11 @@ export default function BodyguardDetailScreen() {
 
   const [bodyguard, setBodyguard] = useState<Bodyguard | null>(null);
   const [loading, setLoading] = useState(true);
-
-  const initialServiceType = defaultService === 'trip' ? 'route' : 'location';
-  const hasVehicle = bodyguard && bodyguard.vehicle_type !== 'none';
-  const initialUseVehicle = defaultService === 'trip' && hasVehicle;
-
-  const [serviceType, setServiceType] = useState<'location' | 'route'>(initialServiceType);
+  const [serviceType, setServiceType] = useState<'location' | 'route'>('location');
   const [hours, setHours] = useState('2');
   const [pickupLocation, setPickupLocation] = useState('');
   const [dropoffLocation, setDropoffLocation] = useState('');
-  const [useBodyguardVehicle, setUseBodyguardVehicle] = useState(initialUseVehicle);
+  const [useBodyguardVehicle, setUseBodyguardVehicle] = useState(false);
   const [discretionLevel, setDiscretionLevel] = useState<DiscretionLevel>('medium');
   const [selectedOutfit, setSelectedOutfit] = useState<OutfitType>('formal');
   const [notes, setNotes] = useState('');
@@ -79,6 +74,17 @@ export default function BodyguardDetailScreen() {
   useEffect(() => {
     loadBodyguard();
   }, [id]);
+
+  useEffect(() => {
+    if (bodyguard) {
+      const initialServiceType = defaultService === 'trip' ? 'route' : 'location';
+      const hasVehicle = bodyguard.vehicle_type !== 'none';
+      const initialUseVehicle = defaultService === 'trip' && hasVehicle;
+
+      setServiceType(initialServiceType);
+      setUseBodyguardVehicle(initialUseVehicle);
+    }
+  }, [bodyguard, defaultService]);
 
   async function loadBodyguard() {
     try {
