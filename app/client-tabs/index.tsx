@@ -4,19 +4,35 @@ import { Shield, MapPin, User } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useState, useEffect } from 'react';
 import SOSButton from '../../components/SOSButton';
-import { userProfileService } from '../../lib/user-profile-service';
+import { supabase } from '../../lib/supabase';
 
 export default function ClientHomeScreen() {
   const router = useRouter();
   const [userName, setUserName] = useState('Cliente');
 
   useEffect(() => {
-    const profile = userProfileService.getProfile();
-    if (profile?.fullName) {
-      const firstName = profile.fullName.split(' ')[0];
-      setUserName(firstName);
-    }
+    loadUserProfile();
   }, []);
+
+  async function loadUserProfile() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (profile?.full_name) {
+        const firstName = profile.full_name.split(' ')[0];
+        setUserName(firstName);
+      }
+    } catch (error) {
+      console.error('Error loading user profile:', error);
+    }
+  }
 
   return (
     <View style={styles.container}>
