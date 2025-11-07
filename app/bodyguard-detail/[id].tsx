@@ -86,6 +86,10 @@ export default function BodyguardDetailScreen() {
     }
   }, [bodyguard, defaultService]);
 
+  useEffect(() => {
+    setError('');
+  }, [hours, serviceType, pickupLocation, dropoffLocation]);
+
   async function loadBodyguard() {
     try {
       setLoading(true);
@@ -277,10 +281,6 @@ export default function BodyguardDetailScreen() {
 
   const basePrice = bodyguard.hourly_rate * parseFloat(hours || '0');
   const totalPrice = basePrice + vehicleCost;
-
-  useEffect(() => {
-    setError('');
-  }, [hours, serviceType, pickupLocation, dropoffLocation]);
 
   const handleBooking = () => {
     if (!pickupLocation) {
