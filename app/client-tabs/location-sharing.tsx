@@ -63,7 +63,7 @@ export default function LocationSharingScreen() {
   };
 
   const filteredContacts = contacts.filter(contact =>
-    contact.full_name.toLowerCase().includes(searchQuery.toLowerCase())
+    contact.full_name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const activePermissions = permissions.filter(p => p.is_active);
