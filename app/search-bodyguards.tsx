@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, StatusBar } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, StatusBar, Image } from 'react-native';
 import { theme } from '../theme';
 import { Shield, Star, MapPin, ArrowLeft, Filter, Car } from 'lucide-react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -25,6 +25,7 @@ type Bodyguard = {
   longitude: number;
   experience_years: number;
   vehicle_type: VehicleType;
+  profile_image_url?: string;
   workZones: WorkZone[];
 };
 
@@ -108,6 +109,7 @@ export default function SearchBodyguardsScreen() {
         longitude: 0,
         experience_years: profile.experience_years || 0,
         vehicle_type: (profile.vehicle_type as VehicleType) || 'none',
+        profile_image_url: profile.profile_image_url,
         workZones: workZones
           ?.filter(wz => wz.bodyguard_id === profile.id)
           .map(wz => ({
@@ -178,7 +180,11 @@ export default function SearchBodyguardsScreen() {
     >
       <View style={styles.cardHeader}>
         <View style={styles.avatar}>
-          <Shield size={32} color={theme.colors.primary} />
+          {item.profile_image_url ? (
+            <Image source={{ uri: item.profile_image_url }} style={styles.avatarImage} />
+          ) : (
+            <Shield size={32} color={theme.colors.primary} />
+          )}
         </View>
         <View style={styles.cardInfo}>
           <Text style={styles.cardName}>{item.full_name}</Text>
@@ -374,6 +380,11 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surfaceLight,
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: 56,
+    height: 56,
   },
   cardInfo: {
     flex: 1,

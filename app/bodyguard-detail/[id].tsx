@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Image } from 'react-native';
 import { theme } from '../../theme';
 import { Shield, Star, MapPin, Calendar, Clock, ArrowLeft, Navigation, Car, AlertCircle, Eye, EyeOff, User } from 'lucide-react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -53,6 +53,7 @@ type Bodyguard = {
   rating: number;
   total_reviews: number;
   vehicle_type: string;
+  profile_image_url?: string;
 };
 
 export default function BodyguardDetailScreen() {
@@ -111,6 +112,7 @@ export default function BodyguardDetailScreen() {
           rating: 4.5,
           total_reviews: 0,
           vehicle_type: data.vehicle_type || 'none',
+          profile_image_url: data.profile_image_url,
         });
       }
     } catch (err) {
@@ -338,7 +340,11 @@ export default function BodyguardDetailScreen() {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.profileSection}>
           <View style={styles.avatar}>
-            <Shield size={64} color={theme.colors.primary} />
+            {bodyguard.profile_image_url ? (
+              <Image source={{ uri: bodyguard.profile_image_url }} style={styles.avatarImage} />
+            ) : (
+              <Shield size={64} color={theme.colors.primary} />
+            )}
           </View>
           <Text style={styles.name}>{bodyguard.full_name}</Text>
           <View style={styles.ratingContainer}>
@@ -644,6 +650,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: 120,
+    height: 120,
   },
   name: {
     fontSize: 24,
