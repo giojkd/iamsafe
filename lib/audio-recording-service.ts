@@ -20,6 +20,9 @@ class AudioRecordingService {
   private isRecording: boolean = false;
   private recordingStartTime: number = 0;
   private currentSOSAlertId: string | null = null;
+  private streamingInterval: NodeJS.Timeout | null = null;
+  private webMediaRecorder: MediaRecorder | null = null;
+  private audioChunks: Blob[] = [];
 
   async requestPermissions(): Promise<boolean> {
     try {
@@ -83,27 +86,38 @@ class AudioRecordingService {
     try {
       console.log('[Audio Service] Starting web recording for SOS:', sosAlertId);
       this.currentSOSAlertId = sosAlertId;
+      this.audioChunks = [];
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      const audioChunks: Blob[] = [];
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: 'audio/webm;codecs=opus',
+      });
 
-      mediaRecorder.ondataavailable = (event) => {
-        audioChunks.push(event.data);
+      let chunkCounter = 0;
+
+      mediaRecorder.ondataavailable = async (event) => {
+        if (event.data.size > 0) {
+          this.audioChunks.push(event.data);
+          chunkCounter++;
+          console.log(`[Audio Service] Chunk ${chunkCounter} received, size: ${event.data.size}`);
+
+          // Upload chunk immediately for streaming
+          await this.uploadAudioChunk(event.data, sosAlertId, chunkCounter);
+        }
       };
 
       mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-        await this.uploadWebRecording(audioBlob, sosAlertId);
+        console.log('[Audio Service] Recording stopped, total chunks:', this.audioChunks.length);
         stream.getTracks().forEach(track => track.stop());
       };
 
-      mediaRecorder.start();
-      (this as any).webMediaRecorder = mediaRecorder;
+      // Start recording with timeslice for streaming (5 seconds chunks)
+      mediaRecorder.start(5000);
+      this.webMediaRecorder = mediaRecorder;
       this.isRecording = true;
       this.recordingStartTime = Date.now();
 
-      console.log('[Audio Service] Web recording started successfully');
+      console.log('[Audio Service] Web streaming recording started successfully');
       return { success: true };
     } catch (error) {
       console.error('[Audio Service] Error starting web recording:', error);
@@ -155,14 +169,14 @@ class AudioRecordingService {
   async stopWebRecording(): Promise<{ success: boolean; error?: string }> {
     try {
       console.log('[Audio Service] Stopping web recording');
-      const mediaRecorder = (this as any).webMediaRecorder as MediaRecorder;
 
-      if (mediaRecorder && mediaRecorder.state === 'recording') {
-        mediaRecorder.stop();
+      if (this.webMediaRecorder && this.webMediaRecorder.state === 'recording') {
+        this.webMediaRecorder.stop();
       }
 
       this.isRecording = false;
-      (this as any).webMediaRecorder = null;
+      this.webMediaRecorder = null;
+      this.audioChunks = [];
 
       console.log('[Audio Service] Web recording stopped successfully');
       return { success: true };
@@ -341,6 +355,134 @@ class AudioRecordingService {
     } catch (error) {
       console.error('[Audio Service] Error deleting recording:', error);
       return false;
+    }
+  }
+
+  async uploadAudioChunk(chunk: Blob, sosAlertId: string, chunkNumber: number): Promise<boolean> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.error('[Audio Service] User not authenticated');
+        return false;
+      }
+
+      const fileName = `${user.id}/${sosAlertId}_chunk_${chunkNumber}_${Date.now()}.webm`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('sos-audio-recordings')
+        .upload(fileName, chunk, {
+          contentType: 'audio/webm',
+          upsert: false,
+        });
+
+      if (uploadError) {
+        console.error('[Audio Service] Chunk upload error:', uploadError);
+        return false;
+      }
+
+      // Save chunk metadata to database
+      const { error: dbError } = await supabase
+        .from('sos_audio_recordings')
+        .insert({
+          sos_alert_id: sosAlertId,
+          user_id: user.id,
+          storage_path: fileName,
+          duration_seconds: 5, // Approximate chunk duration
+          file_size_bytes: chunk.size,
+          mime_type: 'audio/webm',
+          is_processing: false,
+        });
+
+      if (dbError) {
+        console.error('[Audio Service] Chunk database error:', dbError);
+      }
+
+      // Notify emergency contacts about new audio chunk
+      await this.notifyEmergencyContactsOfNewAudio(sosAlertId, fileName);
+
+      console.log(`[Audio Service] Chunk ${chunkNumber} uploaded and contacts notified`);
+      return true;
+    } catch (error) {
+      console.error('[Audio Service] Error uploading audio chunk:', error);
+      return false;
+    }
+  }
+
+  async notifyEmergencyContactsOfNewAudio(sosAlertId: string, audioPath: string): Promise<void> {
+    try {
+      // Get emergency contacts for this SOS alert
+      const { data: sosAlert } = await supabase
+        .from('sos_alerts')
+        .select('user_id')
+        .eq('id', sosAlertId)
+        .maybeSingle();
+
+      if (!sosAlert) return;
+
+      const { data: contacts } = await supabase
+        .from('emergency_contacts')
+        .select('contact_user_id')
+        .eq('user_id', sosAlert.user_id)
+        .eq('is_active', true);
+
+      if (!contacts || contacts.length === 0) return;
+
+      // Get signed URL for audio
+      const { data: urlData } = await supabase.storage
+        .from('sos-audio-recordings')
+        .createSignedUrl(audioPath, 3600);
+
+      if (!urlData?.signedUrl) return;
+
+      // Create chat messages for each emergency contact
+      for (const contact of contacts) {
+        if (!contact.contact_user_id) continue;
+
+        // Find or create conversation
+        const { data: conversations } = await supabase
+          .from('conversations')
+          .select('id')
+          .or(`participant1.eq.${sosAlert.user_id},participant2.eq.${sosAlert.user_id}`)
+          .or(`participant1.eq.${contact.contact_user_id},participant2.eq.${contact.contact_user_id}`)
+          .limit(1);
+
+        let conversationId: string;
+
+        if (conversations && conversations.length > 0) {
+          conversationId = conversations[0].id;
+        } else {
+          // Create new conversation
+          const { data: newConv, error: convError } = await supabase
+            .from('conversations')
+            .insert({
+              participant1: sosAlert.user_id,
+              participant2: contact.contact_user_id,
+            })
+            .select('id')
+            .maybeSingle();
+
+          if (convError || !newConv) {
+            console.error('[Audio Service] Error creating conversation:', convError);
+            continue;
+          }
+          conversationId = newConv.id;
+        }
+
+        // Send audio message
+        await supabase
+          .from('messages')
+          .insert({
+            conversation_id: conversationId,
+            sender_id: sosAlert.user_id,
+            content: `[SOS AUDIO] Registrazione audio di emergenza`,
+            message_type: 'audio',
+            audio_url: urlData.signedUrl,
+          });
+      }
+
+      console.log('[Audio Service] Emergency contacts notified of new audio');
+    } catch (error) {
+      console.error('[Audio Service] Error notifying emergency contacts:', error);
     }
   }
 }

@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { locationSharingService } from './location-sharing-service';
+import { audioRecordingService } from './audio-recording-service';
 import * as Location from 'expo-location';
 import { Platform } from 'react-native';
 
@@ -103,6 +104,12 @@ class SOSService {
         this.startLocationTracking();
       }
 
+      // Start audio recording automatically
+      const audioResult = await audioRecordingService.startRecording(alert.id);
+      if (!audioResult.success) {
+        console.warn('[SOS Service] Failed to start audio recording:', audioResult.error);
+      }
+
       return { success: true, alertId: alert.id };
     } catch (error) {
       console.error('Error in triggerSOS:', error);
@@ -161,6 +168,12 @@ class SOSService {
 
       console.log('[SOS Service] SOS deactivated successfully');
       this.stopLocationTracking();
+
+      // Stop audio recording
+      if (audioRecordingService.getIsRecording()) {
+        await audioRecordingService.stopRecording();
+      }
+
       this.activeSOSId = null;
 
       return true;
@@ -190,6 +203,12 @@ class SOSService {
       }
 
       this.stopLocationTracking();
+
+      // Stop audio recording
+      if (audioRecordingService.getIsRecording()) {
+        await audioRecordingService.stopRecording();
+      }
+
       this.activeSOSId = null;
 
       return true;
